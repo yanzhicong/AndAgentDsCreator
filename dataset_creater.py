@@ -24,7 +24,6 @@ def list_all_devices():
             device_list.append(d.split()[0])
     return device_list
 
-
 class AndroidController:
     def __init__(self, device):
         self.device = device
@@ -32,6 +31,7 @@ class AndroidController:
         self.backslash = "\\"
         self.screenshot_dir = "/sdcard"
         self.xml_dir = "/sdcard"  # 
+        os.system(f"adb -s {self.device} push yadb /sdcard")
         
     def get_device_size(self):
         adb_command = f"adb -s {self.device} shell wm size"
@@ -64,7 +64,7 @@ class AndroidController:
         if result != "ERROR":
             result = execute_adb(pull_command)
             if result != "ERROR":
-                return os.path.join(save_dir, prefix + ".xml")
+                return os.path.join(save_dir, prefix+".xml")
             return result
         return result
 
@@ -72,6 +72,11 @@ class AndroidController:
         command = f"adb -s {self.device} shell dumpsys activity activities"
         with open(os.path.join(save_dir, prefix + ".activities.log"), "w") as outfile:
             outfile.write(execute_adb(command))
+            
+    def text(self, input_str):
+        adb_command = f"adb -s {self.device} shell app_process -Djava.class.path=/sdcard/yadb /sdcard com.ysbing.yadb.Main -keyboard \"{input_str}\""
+        ret = execute_adb(adb_command)
+        return ret
 
 
 class UserInputMonitor(object):
@@ -86,11 +91,6 @@ class UserInputMonitor(object):
         :param device: a Device instance
         """
         self.logger = logging.getLogger(self.__class__.__name__)
-
-        if device is None:
-            from droidbot.device import Device
-            device = Device()
-            
         self.device = device
         self.connected = False
         self.process = None
@@ -112,7 +112,7 @@ class UserInputMonitor(object):
         self.step_ind = 1
 
     def connect(self):
-        self.process = subprocess.Popen(["adb", "-s", self.device.serial, "shell", "getevent", "-lt"],
+        self.process = subprocess.Popen(["adb", "-s", self.device, "shell", "getevent", "-lt"],
                                         stdin=subprocess.PIPE,
                                         stderr=subprocess.PIPE,
                                         stdout=subprocess.PIPE)
@@ -131,10 +131,6 @@ class UserInputMonitor(object):
     def handle_output(self):
         self.connected = True
 
-        # f = None
-        # if self.out_file is not None:
-        #     f = open(self.out_file, 'w')
-
         while self.connected:
             if self.process is None:
                 continue
@@ -144,8 +140,15 @@ class UserInputMonitor(object):
             self.parse_line(line)
         print("[CONNECTION] %s is disconnected" % self.__class__.__name__)
 
+
+    def write_input_action(self, input_str):
+        with open(self.out_file, "a", encoding="utf-8") as outfile:
+            outfile.write("Step {} : Input text \"{}\"\n".format(self.step_ind, input_str))
+        self.step_ind += 1
+
+
     def write_complete_action(self):
-        with open(self.out_file, "a") as outfile:
+        with open(self.out_file, "a", encoding="utf-8") as outfile:
             outfile.write("Step {} : Set spisode status as COMPLETE\n".format(self.step_ind))
 
     def parse_line(self, getevent_line):
@@ -160,11 +163,11 @@ class UserInputMonitor(object):
 
             elif "UP" in getevent_line:
                 if len(self.pos_list) == 1:
-                    with open(self.out_file, "a") as outfile:
+                    with open(self.out_file, "a", encoding="utf-8") as outfile:
                         print_and_write(outfile, "Step {} : Tap [{},{}]".format(self.step_ind, int(self.pos_list[0][0]), int(self.pos_list[0][1])))
                     self.step_ind += 1
                 else:
-                    with open(self.out_file, "a") as outfile:
+                    with open(self.out_file, "a", encoding="utf-8") as outfile:
                         print_and_write(outfile, "Step {} : Move from [{},{}] to [{},{}]".format(self.step_ind,
                                 int(self.pos_list[0][0]), int(self.pos_list[0][1]), 
                                 int(self.pos_list[-1][0] - self.pos_list[0][0]), int(self.pos_list[-1][1] - self.pos_list[0][1])))
@@ -180,23 +183,22 @@ class UserInputMonitor(object):
             self.pos_list.append((self.x_pos, self.y_pos))
 
 
+
 if __name__ == "__main__":
         
-    task_id = "settings_3"
+    task_id = "settings_4"
     task_description = "帮我打开省电模式"
-    
-    output_dir = "./AAA_xiaomi_13"
+    output_dir = "C:/Users/yznzh/OneDrive/文档/Agent/AAA_xiaomi_13"
     
     task_output_dir = os.path.join(output_dir, task_id)
     
     os.makedirs(task_output_dir, exist_ok=True)
-    with open(os.path.join(task_output_dir, task_id + ".goal.txt"), "w") as outfile:
+    with open(os.path.join(task_output_dir, task_id + ".goal.txt"), "w", encoding="utf-8") as outfile:
         outfile.write(task_description)
         
     devices = list_all_devices()
     device = AndroidController(devices[0])
-
-    input_monitor = UserInputMonitor(output_fp=os.path.join(task_output_dir, "{}.action.txt".format(task_id)))
+    input_monitor = UserInputMonitor(devices[0], output_fp=os.path.join(task_output_dir, "{}.action.txt".format(task_id)))
     input_monitor.connect()
 
     try:
@@ -206,12 +208,15 @@ if __name__ == "__main__":
             device.get_xml("{}.step_{}".format(task_id, step), task_output_dir)
             device.get_screenshot("{}.step_{}".format(task_id, step), task_output_dir)
             device.get_activities("{}.step_{}".format(task_id, step), task_output_dir)
-            c = input()
+            input_str = input().strip()
             
-            if c == "e" or c == "end":
+            if input_str == "e" or input_str == "end":
                 input_monitor.write_complete_action()
                 break
-            
+            elif len(input_str) > 0:
+                device.text(input_str)
+                input_monitor.write_input_action(input_str)
+
             step += 1
 
     except KeyboardInterrupt:
