@@ -1,8 +1,6 @@
 import os
-import sys
-import time
 import subprocess
-import logging
+
 
 def execute_adb(adb_command):
     result = subprocess.run(adb_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -87,7 +85,6 @@ class UserInputMonitor(object):
         initialize connection
         :param device: a Device instance
         """
-        self.logger = logging.getLogger(self.__class__.__name__)
         self.device = device
         self.connected = False
         self.process = None
