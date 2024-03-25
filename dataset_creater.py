@@ -4,8 +4,6 @@ import time
 import subprocess
 import logging
 
-
-
 def execute_adb(adb_command):
     result = subprocess.run(adb_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if result.returncode == 0:
@@ -78,7 +76,6 @@ class AndroidController:
         ret = execute_adb(adb_command)
         return ret
 
-
 class UserInputMonitor(object):
     """
     A connection with the target device through `getevent`.
@@ -94,10 +91,6 @@ class UserInputMonitor(object):
         self.device = device
         self.connected = False
         self.process = None
-        # if device.output_dir is None:
-        #     self.out_file = None
-        # else:
-        #     self.out_file = "%s/user_input.txt" % device.output_dir
         if output_fp is not None:
             self.out_file = output_fp
         else:
@@ -181,7 +174,6 @@ class UserInputMonitor(object):
             pos = getevent_line.strip().split(" ")[-1]
             self.y_pos = float(int(pos, 16)) / 10.0
             self.pos_list.append((self.x_pos, self.y_pos))
-
 
 
 if __name__ == "__main__":
